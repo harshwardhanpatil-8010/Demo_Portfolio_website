@@ -132,13 +132,17 @@ If you didn’t configure the security group during launch:
 
 From your laptop (same directory as your `.pem` key):
 
-Give the appropriate permissions to file 
+#### Step 5.1.1: Give the appropriate permissions to file 
 ```bash MacOS
 chmod 400 /path/to/your-key.pem
 ```
 For Windows in CMD
 ```bash Windows
+icacls "/path/to/your-key.pem" /inheritance:r
+icacls "/path/to/your-key.pem" /grant:r "%username%":F
+```
 
+#### Step 5.1.2: Connect to your instance
 ```bash
 ssh -i /path/to/your-key.pem ubuntu@EC2_PUBLIC_IP
 ```
@@ -339,6 +343,58 @@ http://EC2_PUBLIC_IP:13000
 ```
 
 Replace `EC2_PUBLIC_IP` with your instance’s public IP. You should see the same Workshop Lounge app (counter, moods, messages, click game).
+
+---
+
+# Part 9 — Workshop concepts (teaching notes)
+
+### Security group
+
+- **Security groups** are AWS firewalls. If port **13000** is not allowed in the security group, the app will run in Docker but the browser cannot reach it.
+
+### EC2 and Docker
+
+- EC2 **does not build** the image. It only **pulls** the image from Docker Hub and **runs** it. Build and push happen on your laptop (or in CI).
+
+### Port mapping
+
+- **Browser** → **EC2:13000** → **Container:80**   
+  `13000` is the host port we expose; `80` is the port the app listens on inside the container.
+
+### End-to-end flow
+
+| Step        | Where      | What you do                          |
+|------------|------------|--------------------------------------|
+| Build      | Your laptop| `./scripts/build-and-push.sh USER`   |
+| Registry   | Docker Hub | Image is stored (public)             |
+| Run        | EC2        | `docker compose pull` + `up -d`       |
+| Redeploy   | EC2        | `./deploy.sh` or `pull` + `up -d`     |
+
+---
+
+# Part 10 — Debug checklist
+
+| Symptom                 | What to check |
+|-------------------------|---------------|
+| Site doesn’t load       | Security group: inbound rule for **TCP 13000** from `0.0.0.0/0` (or your IP). |
+| “Permission denied” docker | Log out and log back in after running `install_prerequisites.sh`. |
+| Container exits         | `docker logs deployment-demo` |
+| “no matching manifest”   | Image was built only for one architecture. Re-run `./scripts/build-and-push.sh` (builds amd64 + arm64). |
+| Compose not found       | Install Docker Compose plugin (Part 7) and use `docker compose` (with a space). |
+
+---
+
+# Part 11 — Cleanup (optional)
+
+On EC2, to stop and remove the app and free space:
+
+```bash
+cd ~/deployment-demo
+docker compose down
+docker system prune -af
+```
+
+You can terminate the EC2 instance from the AWS Console when you’re done.
 
 ---
 
